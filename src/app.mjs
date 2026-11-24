@@ -142,6 +142,7 @@ function clearPending() {
 
 function route() {
   routeId++;
+  document.querySelectorAll('.flight').forEach(node => node.remove());
   socket?.close();
   socket = null;
   clearPending();
@@ -195,11 +196,13 @@ function subscribe() {
     },
     receive(message) {
       if (active !== routeId) return;
+      let transfers = [];
       if (message.type === 'error') {
         clearPending();
         toast(message.message ?? '操作失败');
       } else if (message.type === 'state' || message.type === 'room') {
         const previous = view;
+        const previousKey = handKey;
         room = message.room;
         if (message.type === 'state' && message.view?.failed) screenError = '原站报告牌桌运行失败。';
         seat = message.your_seat;
@@ -219,10 +222,15 @@ function subscribe() {
           seenAction = signature;
           syncHand(previous, spent);
           rememberHand();
+          if (previous && previousKey === handKey && !view.events?.length) {
+            transfers = (view.tribute?.transfers ?? []).slice(previous.tribute?.transfers?.length ?? 0);
+          }
         }
         if (room && seat && recent[0]?.code !== code) rememberRoom();
       }
       render();
+      if (view?.events?.length) document.querySelectorAll('.flight').forEach(node => node.remove());
+      transfers.forEach(animateTransfer);
       if (dialog.open) renderHistory();
     }
   });
@@ -380,18 +388,40 @@ function seatBox(id, position) {
   const local = id === seat;
   const count = view.hand_sizes?.[id] ?? 0;
   const publicCards = exposedCards(view, id);
-  const showCurrent = !local && view.current_actor === id && view.phase !== 'terminal';
+  const showCurrent = view.current_actor === id && view.phase !== 'terminal';
   const order = (view.result?.finish_order ?? view.finished ?? []).indexOf(id);
   const marker = local ? '我' : (Number(id[1]) - Number(seat[1]) + 4) % 4 === 2 ? '搭档' : '对手';
   const representative = player?.kind === 'bot' ? '♠' : Array.from(nameFor(id))[0];
   const back = '<span class="card-back" aria-hidden="true">♠</span>';
   const fan = (count > publicCards.length ? back.repeat(Math.min(4, count - publicCards.length)) : '');
-  return '<div class="seat seat-' + position + (showCurrent ? ' active' : '') + '"><div class="seat-info"><span class="avatar">'
+  return '<div data-seat="' + id + '" class="seat seat-' + position + (showCurrent ? ' active' : '') + '"><div class="seat-info"><span class="avatar">'
     + escape(representative) + '</span><div class="seat-name"><b>' + escape(nameFor(id)) + '</b><small>' + marker
     + (order >= 0 ? ' · ' + ['头游', '二游', '三游', '末游'][order] : '') + '</small></div><strong class="remaining">'
     + count + '<small> 张</small></strong></div>'
     + (!local && (publicCards.length || fan) ? '<div class="opponent-hand">' + cardLine(publicCards, 'known-cards', true) + fan + '</div>' : '')
     + '</div>';
+}
+
+function animateTransfer({from, to, card: face}) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const giver = document.querySelector(`[data-seat="${from}"]`);
+  const recipient = document.querySelector(`[data-seat="${to}"]`);
+  if (!giver || !recipient) return;
+  const start = giver.getBoundingClientRect();
+  const slot = to === seat ? document.querySelector('.own-known') : recipient.querySelector('.known-cards');
+  const end = (slot ?? recipient).getBoundingClientRect();
+  const flight = document.createElement('div');
+  flight.className = 'flight';
+  flight.setAttribute('aria-hidden', 'true');
+  flight.innerHTML = card(face);
+  flight.style.left = start.left + start.width / 2 + 'px';
+  flight.style.top = start.top + start.height / 2 + 'px';
+  document.body.append(flight);
+  const travel = flight.animate([
+    { transform: 'translate(-50%, -50%) scale(.75)', opacity: .5 },
+    { transform: `translate(calc(-50% + ${end.left + end.width/2 - start.left - start.width/2}px), calc(-50% + ${end.top + end.height/2 - start.top - start.height/2}px)) scale(.75)`, opacity: 1 }
+  ], {duration: 480, easing: 'ease-out'});
+  travel.onfinish = () => flight.remove();
 }
 
 function latestPlay() {
@@ -405,7 +435,6 @@ function playTable() {
   const myIndex = Number(seat[1]);
   const others = [[SEATS[partner], 'top'], [SEATS[(myIndex + 3) % 4], 'left'], [SEATS[(myIndex + 1) % 4], 'right']];
   const last = latestPlay();
-  const transfer = view.tribute?.transfers ?? [];
   const phase = view.phase;
   const exchange = phase === 'tribute' || phase === 'return';
   let center;
@@ -417,16 +446,18 @@ function playTable() {
       + (view.result?.finish_order ?? []).map(id => escape(nameFor(id))).join(' · ') + '</span>';
   } else if (exchange) {
     center = '<span class="eyebrow">换牌阶段</span><strong class="table-title">' + (phase === 'tribute' ? '进贡' : '还贡')
-      + '</strong>' + cardLine(transfer.map(item => item.card), 'played');
+      + '</strong>';
   } else if (last) {
-    const combo = describe(last.action, view.level_rank);
-    const skips = [];
-    for (const event of [...(view.events ?? [])].reverse()) {
-      if (event.trick !== view.current_trick || event.action !== 'PASS') break;
-      skips.unshift(escape(nameFor(event.seat)));
-    }
-    center = '<span class="eyebrow">' + escape(nameFor(last.seat)) + ' · ' + escape(combo.name) + '</span>'
-      + cardLine(last.cards ?? combo.cards, 'played', false, view.level_rank, last.action) + (skips.length ? '<small class="table-passes">' + skips.join('、') + ' 不出</small>' : '');
+    const positions = [...others, [seat, 'self']];
+    center = '<div class="trick">' + positions.map(([id, position]) => {
+      const play = view.trick_cards?.[id];
+      if (!play) return '';
+      const winning = last.seat === id;
+      const content = play.action === 'PASS' ? '<small>不出</small>'
+        : cardLine(play.cards, 'played', false, view.level_rank, play.action);
+      return '<div class="trick-play trick-' + position + (winning ? ' winning' : '') + '" aria-label="'
+        + escape(nameFor(id)) + '" title="' + escape(describe(play.action, view.level_rank).name) + '">' + content + '</div>';
+    }).join('') + '</div>';
   } else {
     center = '<span class="table-suit" aria-hidden="true">♠</span><strong class="table-title">自由领出</strong>';
   }
@@ -486,7 +517,7 @@ function controls() {
         + (ready ? '等待搭档' : match?.winner_team != null ? '开始新局' : '下一手') + '</button>'
       : (play ? '<button data-action="pass"' + disable(!ownTurn || !canPass) + '>不出</button>'
         + '<button data-action="suggest"' + disable(!ownTurn || !canSuggest) + '>自动选牌</button>' : '')
-        + '<button class="primary" data-action="play"' + disable(!ownTurn || !choice) + '>'
+        + '<button data-action="play"' + disable(!ownTurn || !choice) + '>'
         + (play ? '出牌' : phase === 'tribute' ? '进贡' : '还贡') + '</button>') + '</div></div>';
 }
 
@@ -524,7 +555,7 @@ function handMarkup() {
     const name = describe(group.action, view.level_rank).name;
     return '<div class="locked-group" style="' + style + '"><div class="group-cards">'
       + items.map((item, index) => buildCard(item, '--i:' + index)).join('')
-      + '</div><div class="group-label"><button class="group-pick" data-action="group" data-value="' + i + '" title="选择整组">'
+      + '</div><div class="group-label"><button class="group-pick" data-action="group" data-value="' + i + '" title="点击选择整组">'
       + escape(name) + '</button><button class="group-unlock" data-action="unlock" data-value="' + i + '" aria-label="解除锁定 ' + escape(name)
       + '" title="解除锁定">×</button></div></div>';
   }).join('');
@@ -536,13 +567,13 @@ function handMarkup() {
     + '<button class="quiet hint-close" data-action="hint-close" aria-label="关闭同花顺提示">×</button></div>' : '';
   const legalForLock = view.phase === 'play' && selected.size > 0;
   return '<section class="hand" aria-label="我的手牌"><div class="hand-head"><h2>我的手牌 <small>' + sorted.length
-    + ' 张</small></h2><div class="organize-actions"><button data-action="basic">基本整理</button>'
+    + ' 张</small></h2><div class="organize-actions"><button data-action="basic">默认理牌</button>'
     + '<button data-action="lock"' + (!legalForLock ? ' disabled' : '') + '>锁定组合</button>'
-    + '<button data-action="auto"' + (canPick && !exchange ? '' : ' disabled') + '>自动整理</button>'
+    + '<button data-action="auto"' + (canPick && !exchange ? '' : ' disabled') + '>智能理牌</button>'
     + '<button data-action="flush" aria-expanded="' + hintOpen + '">同花顺提示</button></div></div>'
     + hints + '<div class="hand-scroll" tabindex="0" aria-label="手牌，可横向滚动"><div class="hand-layout">' + groupMarkup + columnMarkup
     + (sorted.length ? '' : '<span class="muted">手牌已出完</span>') + '</div></div>'
-    + '<div class="hand-foot"><span>' + (selected.size ? '已选 ' + selected.size + ' 张' : '点击手牌选择，点击组合名称可选中整组')
+    + '<div class="hand-foot"><span>' + (selected.size ? '已选 ' + selected.size + ' 张' : '')
     + '</span>' + (selected.size ? '<button class="quiet" data-action="clear">清空选择</button>' : '') + '</div></section>';
 }
 
@@ -551,7 +582,7 @@ function selectionFaces(actions) {
 }
 
 function game() {
-  return '<div class="game-head"><div><a class="back-link" href="#">返回大厅</a><h1>房间 <span>' + escape(code)
+  return '<div class="game-head"><div><h1>房间 <span>' + escape(code)
     + '</span></h1></div><div class="game-tools"><span>第 ' + escape(room.match_number ?? 1) + ' 局 · 第 '
     + escape(room.hand_number ?? match?.hand_number ?? '—') + ' 手</span><button data-action="invite">复制邀请</button></div></div>'
     + counter() + playTable() + controls() + handMarkup();
@@ -564,6 +595,7 @@ function render() {
   const name = focused?.name;
   const handOffset = app.querySelector('.hand-scroll')?.scrollLeft;
   const gameActive = code && room && view && isSeat(seat) && !view.failed && link !== 'gone';
+  document.body.classList.toggle('at-table', Boolean(gameActive));
   const homeLink = document.querySelector('[data-nav="home"]');
   if (code) homeLink.removeAttribute('aria-current');
   else homeLink.setAttribute('aria-current', 'page');
