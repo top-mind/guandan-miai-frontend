@@ -496,3 +496,26 @@ body.at-table {background:radial-gradient(ellipse at 49% 39%,#633941,#3c252b 75%
   .at-table .score {gap:3px}
   .at-table .hand-layout > div + div {margin-left:-6px}
 }
+
+/* Each column paints as one layer. Within it the lower card owns the overlap. */
+.at-table .hand-layout > div { isolation:isolate; position:relative; }
+.at-table .hand-layout > div + div { margin-left:calc(-.27 * var(--card-w)); }
+.at-table .hand-layout > .locked-group + .rank-stack { margin-left:8px; }
+.at-table .hand-layout .rank-stack .card:focus-visible { z-index:var(--i); }
+.at-table .hand-layout .card .corner {
+  inset:2px 0 auto; display:block; height:1em; line-height:1;
+  font-size:clamp(13px,1.6vw,21px);
+}
+.at-table .hand-layout .corner b {
+  position:absolute; left:0; width:27%; text-align:center; font-size:.94em;
+}
+.at-table .hand-layout .ten .corner b { letter-spacing:-.12em; transform:scaleX(.75); }
+.at-table .hand-layout .joker .corner b { font-size:.66em; line-height:1.4; transform:scaleX(.82); white-space:nowrap; }
+.at-table .hand-layout .card .corner span {
+  display:block; position:absolute; left:27%; width:46%; text-align:center; font-size:1em;
+}
+.at-table .hand-layout .card .pip { display:none; }
+.at-table .hand-layout button.card:disabled {
+  opacity:1; background:#c1b8ad; border-color:#8f8379; color:#29252a;
+}
+.at-table .hand-layout button.card.red:disabled { color:#85293d; }

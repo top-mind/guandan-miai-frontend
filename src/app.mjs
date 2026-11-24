@@ -278,7 +278,7 @@ function card(face, options = {}) {
   const suit = joker ? (red ? '★' : '✦') : suitMark[face[1]];
   const rank = joker ? (red ? '大王' : '小王') : rankLabel(face[0]);
   const wild = face === (options.level ?? view?.level_rank) + 'h';
-  const cls = 'card' + (red ? ' red' : '') + (joker ? ' joker' : '') + (wild ? ' wild' : '')
+  const cls = 'card' + (face[0] === 'T' ? ' ten' : '') + (red ? ' red' : '') + (joker ? ' joker' : '') + (wild ? ' wild' : '')
     + (options.active ? ' picked' : '') + (options.known ? ' known' : '');
   const as = options.as;
   const label = escape(faceLabel(face) + (wild ? '，百搭' : '') + (options.known ? '，明牌' : '')
@@ -889,8 +889,15 @@ document.addEventListener('click', event => {
       break;
     case 'suggest': {
       const actions = view.legal_combos ?? [];
-      const lead = actions.filter(action => action !== 'PASS' && actionCards(action).length === 1);
-      pickCombo(weakest(!actions.includes('PASS') && lead.length ? lead : actions, view.level_rank));
+      const handSize = layout.cards.length;
+      const finishes = actions.filter(action => action !== 'PASS' && actionCards(action).length === handSize);
+      let candidates = actions;
+      if (finishes.length) candidates = finishes;
+      else if (!actions.includes('PASS')) {
+        const singles = actions.filter(action => actionCards(action).length === 1);
+        if (singles.length) candidates = singles;
+      }
+      pickCombo(weakest(candidates, view.level_rank));
       break;
     }
     case 'pass':
