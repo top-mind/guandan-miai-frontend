@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#161717">
+  <meta name="description" content="和 Miai 打掼蛋。支持好友组队、手牌整理、记牌和对局回看。">
+  <title>掼蛋牌室 · Miai</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23e7bd83'/%3E%3Ctext x='32' y='48' text-anchor='middle' font-size='46' fill='%23161717'%3E%E2%99%A0%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell bar-content">
+      <a class="brand" href="#" aria-label="掼蛋牌室大厅">
+        <span class="brand-icon" aria-hidden="true">♠</span>
+        <span>掼蛋牌室 <small>Miai</small></span>
+      </a>
+      <nav aria-label="主导航">
+        <a href="#" data-nav="home">大厅</a>
+        <button type="button" class="quiet" data-action="history">对局历史</button>
+      </nav>
+      <span id="connection" class="connection"></span>
+    </div>
+  </header>
+  <main id="app" class="shell"></main>
+  <dialog id="history" aria-labelledby="history-title"></dialog>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="./src/app.mjs"></script>
+</body>
+</html>
