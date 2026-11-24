@@ -565,11 +565,11 @@ function handMarkup() {
     const items = group.ids.map(id => sorted.find(item => item.id === id)).filter(Boolean);
     const style = '--size:' + items.length;
     const name = describe(group.action, view.level_rank).name;
-    return '<div class="locked-group" style="' + style + '"><div class="group-cards">'
+    const label = name.replace(/^(\d+) 张炸弹.*/, '$1炸').split(' ')[0];
+    return '<div class="locked-group" style="' + style + '"><div class="group-cards rank-stack">'
       + items.map((item, index) => buildCard(item, '--i:' + index)).join('')
-      + '</div><div class="group-label"><button class="group-pick" data-action="group" data-value="' + i + '" title="点击选择整组">'
-      + escape(name) + '</button><button class="group-unlock" data-action="unlock" data-value="' + i + '" aria-label="解除锁定 ' + escape(name)
-      + '" title="解除锁定">×</button></div></div>';
+      + '</div><div class="group-label"><button class="group-pick" data-action="group" data-value="' + i + '" title="'
+      + escape(name) + ' · 选择整组后点击理牌可解锁">' + escape(label) + '</button></div></div>';
   }).join('');
   const columnMarkup = columns.map(items => '<div class="rank-stack" style="--size:' + items.length + '">'
     + items.map((item, index) => buildCard(item, '--i:' + (items.length - index - 1))).join('') + '</div>').join('');
@@ -579,8 +579,8 @@ function handMarkup() {
     + '<button class="quiet hint-close" data-action="hint-close" aria-label="关闭同花顺提示">×</button></div>' : '';
   const legalForLock = view.phase === 'play' && selected.size > 0;
   return '<section class="hand" aria-label="我的手牌"><div class="hand-head"><h2>我的手牌 <small>' + sorted.length
-    + ' 张</small></h2><div class="organize-actions"><button data-action="basic">默认理牌</button>'
-    + '<button data-action="lock"' + (!legalForLock ? ' disabled' : '') + '>锁定组合</button>'
+    + ' 张</small></h2><div class="organize-actions"><button data-action="basic">排序</button>'
+    + '<button data-action="lock" title="锁定所选牌型，或解锁已选整组"' + (!legalForLock ? ' disabled' : '') + '>理牌</button>'
     + '<button data-action="auto"' + (canPick && !exchange ? '' : ' disabled') + '>智能理牌</button>'
     + '<button data-action="flush" aria-expanded="' + hintOpen + '">同花顺提示</button></div></div>'
     + hints + '<div class="hand-scroll" tabindex="0" aria-label="手牌，可横向滚动"><div class="hand-layout">' + groupMarkup + columnMarkup
@@ -594,11 +594,9 @@ function selectionFaces(actions) {
 }
 
 function game() {
-  return '<div class="game-head"><div><h1>房间 <span>' + escape(code)
-    + '</span></h1></div><div class="game-tools"><span>第 ' + escape(room.match_number ?? 1) + ' 局 · 第 '
-    + escape(room.hand_number ?? match?.hand_number ?? '—') + ' 手</span><button data-action="invite">复制邀请</button></div></div>'
-    + '<div class="desk-menu"><button data-action="history">对局历史</button><a href="#">大厅</a></div>'
-    + counter() + playTable() + controls() + handMarkup();
+  return '<header class="desk-header"><div class="desk-menu"><button data-action="history">对局历史</button>'
+    + '<button data-action="invite">复制邀请</button><a href="#">大厅</a></div>'
+    + counter() + '</header>'  + playTable() + controls() + handMarkup();
 }
 
 function render() {
@@ -853,12 +851,12 @@ document.addEventListener('click', event => {
     case 'basic':
       setLayout([]);
       break;
-    case 'lock':
-      lockSelection();
+    case 'lock': {
+      const group = layout.groups.find(item => item.ids.length === selected.size && item.ids.every(id => selected.has(id)));
+      if (group) setLayout(layout.groups.filter(item => item !== group));
+      else lockSelection();
       break;
-    case 'unlock':
-      setLayout(layout.groups.filter((_, i) => i !== Number(value)));
-      break;
+    }
     case 'auto': {
       const locked = layout.groups.filter(group => group.source !== 'auto');
       const lockedIds = new Set(locked.flatMap(group => group.ids));
