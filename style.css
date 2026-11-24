@@ -514,7 +514,6 @@ body.at-table {background:radial-gradient(ellipse at 49% 39%,#633941,#3c252b 75%
 .at-table .hand-layout .card .corner span {
   display:block; position:absolute; left:27%; width:46%; text-align:center; font-size:1em;
 }
-.at-table .hand-layout .card .pip { display:none; }
 .at-table .hand-layout button.card:disabled {
   opacity:1; background:#c1b8ad; border-color:#8f8379; color:#29252a;
 }
