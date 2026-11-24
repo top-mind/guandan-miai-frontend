@@ -384,3 +384,14 @@ dialog[open] { animation:drawer-in .16s ease-out; }
 @media(prefers-reduced-motion:reduce) {
   dialog[open],.seat.active .seat-info { animation:none; }
 }
+@media(max-width:550px) {
+  .at-table .bar-content { min-height:38px; }
+  .at-table .game-head { margin:4px 0; }
+  .table { margin-top:6px; min-height:165px; grid-template-rows:auto minmax(80px,1fr); }
+  .table-center { min-height:75px; }
+  .table-controls { padding:5px 0; gap:4px; }
+  .hand-head { flex-direction:row; flex-wrap:wrap; justify-content:center; gap:4px 8px; }
+  .hand-head h2 { font-size:.88rem; }
+  .hand-layout { padding-top:8px; }
+  .rank-stack { --step:18px; }
+}
