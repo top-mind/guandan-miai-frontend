@@ -369,7 +369,7 @@ function score() {
 function counter() {
   const inHand = view.hands?.[seat] ?? [];
   const values = outsideCounts(inHand, view.events ?? []);
-  const content = [...rankOrder].map(rank => {
+  const content = [...new Set('RB' + view.level_rank + rankOrder)].map(rank => {
     const faces = 'BR'.includes(rank) ? [rank + 'j'] : [...SUITS].reverse().map(suit => rank + suit);
     const total = faces.reduce((sum, face) => sum + values[face], 0);
     const detail = faces.length === 1 ? '' : '<div class="counter-suits">' + faces.map(face => '<span'
@@ -384,22 +384,18 @@ function counter() {
 }
 
 function seatBox(id, position) {
-  const player = room.seats?.[id];
   const local = id === seat;
   const count = view.hand_sizes?.[id] ?? 0;
   const publicCards = exposedCards(view, id);
   const showCurrent = view.current_actor === id && view.phase !== 'terminal';
   const order = (view.result?.finish_order ?? view.finished ?? []).indexOf(id);
   const marker = local ? '我' : (Number(id[1]) - Number(seat[1]) + 4) % 4 === 2 ? '搭档' : '对手';
-  const representative = player?.kind === 'bot' ? '♠' : Array.from(nameFor(id))[0];
-  const back = '<span class="card-back" aria-hidden="true">♠</span>';
-  const fan = (count > publicCards.length ? back.repeat(Math.min(4, count - publicCards.length)) : '');
-  return '<div data-seat="' + id + '" class="seat seat-' + position + (showCurrent ? ' active' : '') + '"><div class="seat-info"><span class="avatar">'
-    + escape(representative) + '</span><div class="seat-name"><b>' + escape(nameFor(id)) + '</b><small>' + marker
-    + (order >= 0 ? ' · ' + ['头游', '二游', '三游', '末游'][order] : '') + '</small></div><strong class="remaining">'
-    + count + '<small> 张</small></strong></div>'
-    + (!local && (publicCards.length || fan) ? '<div class="opponent-hand">' + cardLine(publicCards, 'known-cards', true) + fan + '</div>' : '')
-    + '</div>';
+  
+  return '<div data-seat="' + id + '" class="seat seat-' + position + (showCurrent ? ' active' : '') + '"><div class="seat-info"><span class="avatar" aria-hidden="true"></span>'
+    + '<div class="seat-name"><b>' + escape(nameFor(id)) + '</b><small>' + marker
+    + (order >= 0 ? ' · ' + ['头游', '二游', '三游', '末游'][order] : '') + '</small></div></div>'
+    + cardLine(publicCards, 'known-cards', true) + '<strong class="remaining" aria-label="剩余 ' + count + ' 张">' + count + '</strong></div>';
+
 }
 
 function animateTransfer({from, to, card: face}) {
@@ -408,7 +404,7 @@ function animateTransfer({from, to, card: face}) {
   const recipient = document.querySelector(`[data-seat="${to}"]`);
   if (!giver || !recipient) return;
   const start = giver.getBoundingClientRect();
-  const slot = to === seat ? document.querySelector('.own-known') : recipient.querySelector('.known-cards');
+  const slot = recipient.querySelector('.known-cards');
   const end = (slot ?? recipient).getBoundingClientRect();
   const flight = document.createElement('div');
   flight.className = 'flight';
@@ -424,17 +420,33 @@ function animateTransfer({from, to, card: face}) {
   travel.onfinish = () => flight.remove();
 }
 
-function latestPlay() {
-  const events = view.events ?? [];
-  const current = events.filter(event => event.trick === view.current_trick);
-  return [...current].reverse().find(event => event.action !== 'PASS');
+function currentPlays() {
+  const plays = new Map();
+  let leader;
+  const passes = new Set();
+  for (const event of view.events ?? []) {
+    if (event.trick !== view.current_trick) continue;
+    if (event.is_lead) plays.clear();
+    plays.set(event.seat, event);
+    if (event.action === 'PASS') passes.add(event.seat);
+    else {
+      leader = event;
+      passes.clear();
+    }
+  }
+  const followers = SEATS.filter(id => id !== leader?.seat && view.hand_sizes[id] > 0);
+  if (leader && passes.size && followers.every(id => passes.has(id))) {
+    plays.clear();
+    leader = null;
+  }
+  return { plays, leader };
 }
 
 function playTable() {
   const partner = (Number(seat[1]) + 2) % 4;
   const myIndex = Number(seat[1]);
   const others = [[SEATS[partner], 'top'], [SEATS[(myIndex + 3) % 4], 'left'], [SEATS[(myIndex + 1) % 4], 'right']];
-  const last = latestPlay();
+  const { plays, leader: last } = currentPlays();
   const phase = view.phase;
   const exchange = phase === 'tribute' || phase === 'return';
   let center;
@@ -450,7 +462,7 @@ function playTable() {
   } else if (last) {
     const positions = [...others, [seat, 'self']];
     center = '<div class="trick">' + positions.map(([id, position]) => {
-      const play = view.trick_cards?.[id];
+      const play = plays.get(id);
       if (!play) return '';
       const winning = last.seat === id;
       const content = play.action === 'PASS' ? '<small>不出</small>'
@@ -504,14 +516,14 @@ function controls() {
   if (terminal) status = '本手已结束';
   if (pending) status = '正在提交操作';
   if (link !== 'open') status = '正在重新连接';
-  const myKnown = exposedCards(view, seat);
+
   const disable = condition => condition ? ' disabled' : '';
   const choices = play && actions.length > 1 ? '<label class="declare">牌型<select name="declaration"><option value="">请选择</option>'
     + actions.map(action => '<option value="' + escape(action) + '"' + (choice === action ? ' selected' : '') + '>'
       + escape(describe(action, view.level_rank).name) + '</option>').join('') + '</select></label>' : '';
   const ready = room.next_hand_ready?.includes(seat);
   return '<div class="table-controls"><div class="local-seat">' + seatBox(seat, 'self')
-    + (myKnown.length ? cardLine(myKnown, 'own-known', true) : '') + '<span class="turn-text" aria-live="polite">' + escape(status) + '</span></div>'
+    + '<span class="turn-text" aria-live="polite">' + escape(status) + '</span></div>'
     + '<div class="play-actions">' + choices + (terminal
       ? '<button class="primary" data-action="next"' + disable(link !== 'open' || pending || ready) + '>'
         + (ready ? '等待搭档' : match?.winner_team != null ? '开始新局' : '下一手') + '</button>'
@@ -585,6 +597,7 @@ function game() {
   return '<div class="game-head"><div><h1>房间 <span>' + escape(code)
     + '</span></h1></div><div class="game-tools"><span>第 ' + escape(room.match_number ?? 1) + ' 局 · 第 '
     + escape(room.hand_number ?? match?.hand_number ?? '—') + ' 手</span><button data-action="invite">复制邀请</button></div></div>'
+    + '<div class="desk-menu"><button data-action="history">对局历史</button><a href="#">大厅</a></div>'
     + counter() + playTable() + controls() + handMarkup();
 }
 
