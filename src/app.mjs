@@ -481,12 +481,18 @@ function currentSelection() {
   return layout.cards.filter(card => selected.has(card.id));
 }
 
+function exchangeActions() {
+  const actions = (view.legal_actions ?? []).map(item => item.action);
+  if (view.phase !== 'tribute') return actions;
+  return actions.filter(action => action !== 'TRIBUTE:' + view.level_rank + 'h');
+}
+
 function selectionActions() {
   const picked = currentSelection();
   const key = cardKey(picked.map(item => item.face));
   if (!key || !view.your_turn) return [];
   if (view.phase !== 'play') {
-    return picked.length === 1 ? (view.legal_actions ?? []).map(item => item.action)
+    return picked.length === 1 ? exchangeActions()
       .filter(action => actionCards(action).join('') === key) : [];
   }
   if (selectionMemo?.combos === view.legal_combos && selectionMemo?.key === key) return selectionMemo.actions;
@@ -513,6 +519,8 @@ function controls() {
   const choice = chosenAction(actions);
   let status = '等待 ' + nameFor(view.current_actor) + ' 操作';
   if (view.your_turn) status = play ? (canPass ? '轮到你接牌' : '轮到你领出') : '请选择一张牌';
+  const tributeBlocked = view.phase === 'tribute' && view.your_turn && !exchangeActions().length;
+  if (tributeBlocked) status = '原站未提供可进贡的非癞子牌';
   if (terminal) status = '本手已结束';
   if (pending) status = '正在提交操作';
   if (link !== 'open') status = '正在重新连接';
@@ -523,7 +531,7 @@ function controls() {
       + escape(describe(action, view.level_rank).name) + '</option>').join('') + '</select></label>' : '';
   const ready = room.next_hand_ready?.includes(seat);
   return '<div class="table-controls"><div class="local-seat">' + seatBox(seat, 'self')
-    + '<span class="turn-text" aria-live="polite">' + escape(status) + '</span></div>'
+    + '<span class="turn-text' + (tributeBlocked ? ' tribute-blocked' : '') + '" aria-live="polite">' + escape(status) + '</span></div>'
     + '<div class="play-actions">' + choices + (terminal
       ? '<button class="primary" data-action="next"' + disable(link !== 'open' || pending || ready) + '>'
         + (ready ? '等待搭档' : match?.winner_team != null ? '开始新局' : '下一手') + '</button>'
@@ -556,7 +564,7 @@ function handMarkup() {
   const columns = stackColumns(loose);
   const canPick = view.phase !== 'terminal';
   const exchange = ['tribute', 'return'].includes(view.phase);
-  const allowed = exchange ? new Set(selectionFaces(view.legal_actions ?? [])) : null;
+  const allowed = exchange ? new Set(exchangeActions().flatMap(actionCards)) : null;
   const disabledFace = item => !canPick || (exchange && (!view.your_turn || !allowed.has(item.face)));
   const buildCard = (item, style = '') => card(item.face, {
     id: item.id, active: selected.has(item.id), known: knownIds.has(item.id), disabled: disabledFace(item), style
@@ -587,10 +595,6 @@ function handMarkup() {
     + (sorted.length ? '' : '<span class="muted">手牌已出完</span>') + '</div></div>'
     + '<div class="hand-foot"><span>' + (selected.size ? '已选 ' + selected.size + ' 张' : '')
     + '</span>' + (selected.size ? '<button class="quiet" data-action="clear">清空选择</button>' : '') + '</div></section>';
-}
-
-function selectionFaces(actions) {
-  return actions.flatMap(item => actionCards(item.action));
 }
 
 function game() {

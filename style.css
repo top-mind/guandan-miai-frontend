@@ -518,3 +518,29 @@ body.at-table {background:radial-gradient(ellipse at 49% 39%,#633941,#3c252b 75%
   opacity:1; background:#c1b8ad; border-color:#8f8379; color:#29252a;
 }
 .at-table .hand-layout button.card.red:disabled { color:#85293d; }
+
+/* Narrow screens reserve actual tracks for public cards and turn controls. */
+@media(max-width:590px) {
+  .at-table #app { height:auto; min-height:min(100dvh,820px); grid-template-columns:auto minmax(0,1fr); grid-template-rows:auto minmax(265px,1fr) auto auto; }
+  .at-table .table { display:grid; grid-template-columns:48px minmax(0,1fr) 48px; grid-template-rows:auto minmax(192px,1fr); gap:5px; min-height:0; padding:0; }
+  .at-table .table .seat { position:static; transform:none; }
+  .at-table .seat-top { grid-area:1/1/2/-1; }
+  .at-table .seat-left,.at-table .seat-right { flex-direction:column; align-self:center; justify-self:center; }
+  .at-table .seat-left {grid-area:2/1}
+  .at-table .seat-right {grid-area:2/3}
+  .at-table .table-center {position:relative;inset:auto;grid-area:2/2;align-self:stretch;justify-self:stretch}
+  .at-table .trick {display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1.6fr 1fr;align-items:center;gap:2px}
+  .at-table .trick-play {position:static;transform:none;justify-self:center;width:fit-content;max-width:100%}
+  .at-table .trick-left,.at-table .trick-right {min-width:0}
+  .at-table .local-seat {grid-area:3/1;align-self:center}
+  .at-table .play-actions {grid-area:3/2;justify-self:center;gap:4px;max-width:100%}
+  .at-table .local-seat .known-cards {max-width:34px}
+  .at-table .hand {grid-area:4/1/5/-1}
+}
+@media(max-width:355px) {
+  .at-table #app { grid-template-rows:auto minmax(265px,1fr) auto auto auto; }
+  .at-table .local-seat { grid-area:3/1/4/-1; }
+  .at-table .play-actions { grid-area:4/1/5/-1; }
+  .at-table .hand { grid-area:5/1/6/-1; }
+}
+.at-table .turn-text.tribute-blocked {position:static;clip-path:none;width:auto;height:auto}
